@@ -9,8 +9,8 @@ namespace RbacNet.Core
     {
         public Authorization(Claim claim, Item item)
         {
-            this.Claim = claim;
-            this.Item = item;
+            this.Claim = claim ?? throw new ArgumentNullException(nameof(claim));
+            this.Item = item ?? throw new ArgumentNullException(nameof(item));
         }
         public Item Item { get; private set; }
         public Claim Claim { get; private set; }
@@ -25,7 +25,7 @@ namespace RbacNet.Core
     {
         public Role(string name)
         {
-            Name = name;
+            Name = name ?? throw new ArgumentNullException(nameof(name));
             Operations = new HashSet<Operation>();
             Tasks = new HashSet<Task>();
             Roles = new HashSet<Role>();
@@ -51,7 +51,7 @@ namespace RbacNet.Core
     {
         public Task(string name)
         {
-            Name = name;
+            Name = name ?? throw new ArgumentNullException(nameof(name));
             Operations = new HashSet<Operation>();
         }
         public string Name { get; private set; }
@@ -69,7 +69,7 @@ namespace RbacNet.Core
     {
         public Operation(string name)
         {
-            Name = name;
+            Name = name ?? throw new ArgumentNullException(nameof(name));
         }
         public string Name { get; set; }
 
@@ -85,7 +85,7 @@ namespace RbacNet.Core
     }
     public class Rbac
     {
-        private class ClaimEqualityComparer : EqualityComparer<Claim>
+        public class ClaimEqualityComparer : EqualityComparer<Claim>
         {
             private static readonly EqualityComparer<Claim> instance = new ClaimEqualityComparer();
 
@@ -93,18 +93,18 @@ namespace RbacNet.Core
 
             public override bool Equals(Claim x, Claim y)
             {
-                return x?.Type == y?.Type && x.ValueType == y.ValueType && x.Value == y.Value;
+                return x?.Type == y?.Type && x?.ValueType == y?.ValueType && x?.Value == y?.Value;
             }
 
             public override int GetHashCode(Claim obj)
             {
                 unchecked
                 {
-                    int hash = 17;
-                    hash = hash * 23 + obj.Type.GetHashCode();
-                    hash = hash * 23 + obj.ValueType.GetHashCode();
-                    hash = hash * 23 + obj.Value.GetHashCode();
-                    return hash;
+                    return new object[] {
+                        obj?.Type,
+                        obj?.ValueType,
+                        obj?.Value
+                    }.Aggregate(17, (acc, o) => acc * 23 + o?.GetHashCode() ?? 0);
                 }
             }
         }
@@ -120,7 +120,11 @@ namespace RbacNet.Core
 
         public Rbac Add(params Role[] roles)
         {
-            AddRoles(roles);
+            foreach (var role in roles)
+            {
+                this.roles.Add(role);
+            }
+
             return this;
         }
         public Rbac Allow(params Authorization[] authorizations)
@@ -135,16 +139,13 @@ namespace RbacNet.Core
             return this;
         }
 
-        private void AddRoles(IEnumerable<Role> roles)
-        {
-            foreach (var role in roles)
-            {
-                this.roles.Add(role);
-            }
-        }
-
         public UserAuhorizationContext GetContextFor(ClaimsIdentity identity)
         {
+            if (identity == null)
+            {
+                throw new ArgumentNullException(nameof(identity));
+            }
+
             var allowedOperations = GetAuthorizedOperations(allowAuthorizations, identity.Claims);
             var deniedOperations = GetAuthorizedOperations(denyAuthorizations, identity.Claims);
 
@@ -165,6 +166,11 @@ namespace RbacNet.Core
 
         public UserAuhorizationContext(IEnumerable<Operation> allowedOperations)
         {
+            if (allowedOperations == null)
+            {
+                throw new ArgumentNullException(nameof(allowedOperations));
+            }
+
             this.allowedOperations = new HashSet<Operation>(allowedOperations);
         }
         public bool CanPerform(Operation operation)
